@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Health Intelligence Dashboard</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Leaflet Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body onload="checkAuth()">
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="logo">
+            <i class="fas fa-heartbeat"></i> HealthIntel Dashboard
+        </div>
+        <ul class="nav-links">
+            <li id="userDisplay" style="color: #94a3b8; font-weight: bold;"></li>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="#" class="btn-cta" onclick="logout()">Logout</a></li>
+        </ul>
+    </nav>
+
+<h1>Health Intelligence Dashboard</h1>
+
+<!-- Controls -->
+<div class="controls">
+    <select id="region">
+        <option value="Nairobi">Nairobi</option>
+        <option value="Mombasa">Mombasa</option>
+        <option value="Kisumu">Kisumu</option>
+        <option value="Nakuru">Nakuru</option>
+        <option value="Kiambu">Kiambu</option>
+        <option value="Machakos">Machakos</option>
+        <option value="Kajiado">Kajiado</option>
+        <option value="Uasin Gishu">Uasin Gishu</option>
+        <option value="Kakamega">Kakamega</option>
+        <option value="Bungoma">Bungoma</option>
+        <option value="Busia">Busia</option>
+        <option value="Siaya">Siaya</option>
+        <option value="Homa Bay">Homa Bay</option>
+        <option value="Migori">Migori</option>
+        <option value="Kisii">Kisii</option>
+        <option value="Nyamira">Nyamira</option>
+        <option value="Kericho">Kericho</option>
+        <option value="Bomet">Bomet</option>
+        <option value="Baringo">Baringo</option>
+        <option value="Narok">Narok</option>
+        <option value="Turkana">Turkana</option>
+        <option value="West Pokot">West Pokot</option>
+        <option value="Samburu">Samburu</option>
+        <option value="Trans Nzoia">Trans Nzoia</option>
+        <option value="Elgeyo Marakwet">Elgeyo Marakwet</option>
+        <option value="Nandi">Nandi</option>
+        <option value="Laikipia">Laikipia</option>
+        <option value="Nyandarua">Nyandarua</option>
+        <option value="Murang'a">Murang'a</option>
+        <option value="Kirinyaga">Kirinyaga</option>
+        <option value="Nyeri">Nyeri</option>
+        <option value="Embu">Embu</option>
+        <option value="Tharaka Nithi">Tharaka Nithi</option>
+        <option value="Meru">Meru</option>
+        <option value="Isiolo">Isiolo</option>
+        <option value="Marsabit">Marsabit</option>
+        <option value="Garissa">Garissa</option>
+        <option value="Wajir">Wajir</option>
+        <option value="Mandera">Mandera</option>
+        <option value="Tana River">Tana River</option>
+        <option value="Lamu">Lamu</option>
+        <option value="Taita Taveta">Taita Taveta</option>
+        <option value="Kwale">Kwale</option>
+        <option value="Kilifi">Kilifi</option>
+        <option value="Kitui">Kitui</option>
+        <option value="Makueni">Makueni</option>
+        <option value="Vihiga">Vihiga</option>
+    </select>
+
+    <select id="disease">
+        <option value="Malaria">Malaria</option>
+        <option value="Cholera">Cholera</option>
+        <option value="Tuberculosis">Tuberculosis</option>
+    </select>
+
+    <!-- 🔥 TIME SLIDER -->
+    <div class="slider-container">
+        <label>Year:</label>
+        <input type="range" id="yearSlider" min="2020" max="2030" value="2025" oninput="updateYear()">
+        <span id="yearDisplay">2025</span>
+    </div>
+
+    <button onclick="predict()" class="btn-cta">Analyze</button>
+    <button onclick="downloadPDF()" class="btn-cta">Download Report</button>
+</div>
+
+<!-- Cards -->
+<div class="grid">
+
+    <div class="card" id="riskCard">
+        <h2 id="risk">-</h2>
+        <p>Risk Level</p>
+    </div>
+
+    <div class="card">
+        <h2 id="cases">-</h2>
+        <p>Predicted Cases</p>
+    </div>
+
+    <div class="card">
+        <h2 id="trend">-</h2>
+        <p>Trend</p>
+    </div>
+
+    <div class="card">
+        <h2 id="beds">-</h2>
+        <p>Beds Needed</p>
+    </div>
+
+</div>
+
+<!-- Alert -->
+<div class="alert" id="alert"></div>
+
+<!-- Recommendation -->
+<div class="card big">
+    <h3>Recommendation</h3>
+    <p id="recommendation"></p>
+</div>
+
+<!-- Chart -->
+<div class="card big">
+    <h3>Cases Trend</h3>
+    <canvas id="trendChart"></canvas>
+</div>
+
+<!-- Map -->
+<div class="card big">
+    <h3>Kenya Risk Map</h3>
+    <div id="map"></div>
+</div>
+
+<script src="auth.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
