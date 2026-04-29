@@ -333,6 +333,21 @@ select, input[type="number"], input[type="range"] {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.chart-container {
+    position: relative;
+    height: 320px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#trendChart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 .footer {
     text-align: center;
     padding: 40px;

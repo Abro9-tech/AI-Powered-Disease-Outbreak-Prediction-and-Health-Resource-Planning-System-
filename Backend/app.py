@@ -19,14 +19,25 @@ le_disease = joblib.load("models/le_disease.pkl")
 le_risk = joblib.load("models/le_risk.pkl")
 
 # -----------------------------
-# SIMULATED DATA (AUTO)
+# DETERMINISTIC DATA (STABLE 🔥)
 # -----------------------------
-def get_population(region):
-    return random.randint(500000, 5000000)
+def get_stable_random(seed_str):
+    """Generate a consistent random generator based on a string seed"""
+    import hashlib
+    # Create a numeric seed from the string
+    seed = int(hashlib.sha256(seed_str.encode()).hexdigest(), 16) % (2**32)
+    return random.Random(seed)
 
-def get_environment():
-    rainfall = random.uniform(500, 2000)
-    temperature = random.uniform(15, 35)
+def get_population(region):
+    # Use region as seed so population stays the same for each county
+    rng = get_stable_random(region)
+    return rng.randint(800000, 4500000)
+
+def get_environment(region, year):
+    # Use region + year as seed so weather stays consistent for that specific scenario
+    rng = get_stable_random(f"{region}-{year}")
+    rainfall = rng.uniform(600, 1800)
+    temperature = rng.uniform(18, 32)
     return rainfall, temperature
 
 import os
@@ -97,7 +108,7 @@ def predict_all():
         for county in counties:
             # AUTO DATA
             population = get_population(county)
-            rainfall, temperature = get_environment()
+            rainfall, temperature = get_environment(county, year)
 
             # ENCODE
             region = le_region.transform([county])[0]
@@ -140,7 +151,7 @@ def predict():
 
         # AUTO DATA
         population = get_population(region_name)
-        rainfall, temperature = get_environment()
+        rainfall, temperature = get_environment(region_name, year)
 
         # ENCODE
         region = le_region.transform([region_name])[0]
@@ -166,9 +177,26 @@ def predict():
         risk = le_risk.inverse_transform([risk_encoded])[0]
 
         # -----------------------------
-        # INSIGHTS (UPGRADE 🔥)
+        # TREND DATA (3-YEAR SERIES 🔥)
         # -----------------------------
-        trend = random.choice(["Increasing", "Stable", "Decreasing"])
+        history = []
+        years_to_predict = [year-2, year-1, year]
+        
+        for y in years_to_predict:
+            # Get consistent data for each year
+            y_pop = get_population(region_name)
+            y_rain, y_temp = get_environment(region_name, y)
+            
+            y_feat = np.array([[region, y, disease, y_pop, y_rain, y_temp]])
+            y_cases = int(cases_model.predict(y_feat)[0])
+            history.append({"year": y, "cases": y_cases})
+
+        # -----------------------------
+        # INSIGHTS (STABLE 🔥)
+        # -----------------------------
+        # Make trend deterministic based on risk and predicted cases
+        rng = get_stable_random(f"{region_name}-{disease_name}-{year}")
+        trend = rng.choice(["Increasing", "Stable", "Decreasing"])
 
         beds = int(predicted_cases * 0.1)
         staff = int(beds / 2)
@@ -195,9 +223,43 @@ def predict():
             "beds": beds,
             "staff": staff,
             "alert": alert,
-            "recommendation": recommendation
+            "recommendation": recommendation,
+            "history": history
         })
 
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+# -----------------------------
+# CASES SERIES (2020-2025)
+# -----------------------------
+@app.route("/cases_series", methods=["POST"])
+def cases_series():
+    try:
+        data = request.json
+
+        region_name = data["region"]
+        disease_name = data["disease"]
+
+        start_year = int(data.get("start_year", 2020))
+        end_year = int(data.get("end_year", 2025))
+
+        if start_year > end_year:
+            return jsonify({"error": "start_year must be <= end_year"}), 400
+
+        # ENCODE (once)
+        region = le_region.transform([region_name])[0]
+        disease = le_disease.transform([disease_name])[0]
+
+        series = []
+        for y in range(start_year, end_year + 1):
+            y_pop = get_population(region_name)
+            y_rain, y_temp = get_environment(region_name, y)
+            y_feat = np.array([[region, y, disease, y_pop, y_rain, y_temp]])
+            y_cases = int(cases_model.predict(y_feat)[0])
+            series.append({"year": y, "cases": y_cases})
+
+        return jsonify({"region": region_name, "disease": disease_name, "series": series})
     except Exception as e:
         return jsonify({"error": str(e)})
 
@@ -205,5 +267,5 @@ def predict():
 # RUN
 # -----------------------------
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000)
 

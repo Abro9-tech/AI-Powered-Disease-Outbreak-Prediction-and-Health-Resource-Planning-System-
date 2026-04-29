@@ -5,7 +5,7 @@ function updateYear(){
     document.getElementById("yearDisplay").innerText = 
         document.getElementById("yearSlider").value; 
     // 🔥 Live heatmap update
-    refreshHeatmap();
+    loadHeatmap();
 } 
 
 // ---------------- HELPERS ---------------- 
@@ -46,14 +46,20 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map); 
 
 let kenyaLayer; 
-let geoJsonData;
 
-// ---------------- INITIAL MAP LOAD ---------------- 
-async function initMap(){ 
+// ---------------- FULL AI HEATMAP ---------------- 
+async function loadHeatmap(){ 
+
+    const disease = document.getElementById("disease").value; 
+    const year = document.getElementById("yearSlider").value; 
+
     const res = await fetch("kenya.json"); 
-    geoJsonData = await res.json(); 
+    const data = await res.json(); 
 
-    kenyaLayer = L.geoJSON(geoJsonData, { 
+    if(kenyaLayer) map.removeLayer(kenyaLayer); 
+
+    kenyaLayer = L.geoJSON(data, { 
+
         style: function(feature){ 
             return { 
                 fillColor: "#444", 
@@ -62,72 +68,53 @@ async function initMap(){
                 weight: 1 
             }; 
         }, 
+
         onEachFeature: function(feature, layer){ 
+
             let rawCounty = feature.properties.COUNTY_NAM; 
             let county = normalizeName(rawCounty);
 
+            // Hover 
             layer.on("mouseover", function(){ 
                 layer.bindPopup(`<b>${county}</b>`).openPopup(); 
             }); 
 
+            // Click → run prediction 
             layer.on("click", function(){ 
                 document.getElementById("region").value = county; 
                 predict(); 
             }); 
+
+            // 🔥 CALL MODEL FOR EACH COUNTY (AI DRIVEN)
+            const regionForAI = (county === "Baringo") ? "Nakuru" : county;
+
+            fetch("http://localhost:5000/predict", { 
+                method: "POST", 
+                headers: {"Content-Type": "application/json"}, 
+                body: JSON.stringify({ 
+                    region: regionForAI, 
+                    disease: disease, 
+                    year: year 
+                }) 
+            }) 
+            .then(res => res.json()) 
+            .then(result => { 
+                if(result.error) return; 
+                let color = getColor(result.risk); 
+                layer.setStyle({ 
+                    fillColor: color, 
+                    fillOpacity: 0.7 
+                }); 
+                layer.bindPopup(`<b>${county}</b><br>Risk: ${result.risk}<br>Cases: ${result.cases}`);
+            }); 
         } 
     }).addTo(map); 
-
-    // Once map is ready, run first heatmap analysis
-    refreshHeatmap();
-    predict();
-}
-
-// ---------------- AI HEATMAP UPDATE (PERSISTENT COLORS) ---------------- 
-async function refreshHeatmap(){ 
-    if(!kenyaLayer) return;
-
-    const disease = document.getElementById("disease").value; 
-    const year = document.getElementById("yearSlider").value; 
-
-    console.log("AI Heatmap analyzing all counties...");
-
-    kenyaLayer.eachLayer(function(layer){
-        let rawCounty = layer.feature.properties.COUNTY_NAM; 
-        let county = normalizeName(rawCounty);
-
-        // Alias for AI model missing data
-        const regionForAI = (county === "Baringo") ? "Nakuru" : county;
-
-        fetch("http://localhost:5000/predict", { 
-            method: "POST", 
-            headers: {"Content-Type": "application/json"}, 
-            body: JSON.stringify({ 
-                region: regionForAI, 
-                disease: disease, 
-                year: year 
-            }) 
-        }) 
-        .then(res => res.json()) 
-        .then(result => { 
-            if(result.error) return; 
-            let color = getColor(result.risk); 
-            
-            // 🔥 Update layer style WITHOUT removing/recreating it
-            layer.setStyle({ 
-                fillColor: color, 
-                fillOpacity: 0.7 
-            }); 
-            layer.bindPopup(`<b>${county}</b><br>Risk: ${result.risk}<br>Cases: ${result.cases}`);
-        }); 
-    });
 } 
 
 // ---------------- PREDICT ---------------- 
 function predict(){ 
 
     let selectedRegion = document.getElementById("region").value;
-    
-    // 🔥 Handle Baringo (Alias to Nakuru for prediction if missing from model)
     const regionForAI = (selectedRegion === "Baringo") ? "Nakuru" : selectedRegion;
 
     const data = { 
@@ -165,10 +152,11 @@ function predict(){
         if(res.risk === "Medium") card.classList.add("medium"); 
         if(res.risk === "Low") card.classList.add("low"); 
 
-        drawChart(res.cases); 
+        // Chart should be model-accurate (2020–2025)
+        drawChart2020to2025(data.region, data.disease);
         
         // 🔥 Refresh heatmap
-        refreshHeatmap(); 
+        loadHeatmap(); 
     })
     .catch(err => {
         console.error("Connection Error:", err);
@@ -176,28 +164,41 @@ function predict(){
 } 
 
 // ---------------- CHART ---------------- 
-function drawChart(cases){ 
+async function drawChart2020to2025(region, disease){ 
 
     const ctx = document.getElementById("trendChart"); 
+    const startYear = 2020;
+    const endYear = 2025;
 
-    const data = [ 
-        cases * 0.6, 
-        cases * 0.8, 
-        cases 
-    ]; 
+    const res = await fetch("http://localhost:5000/cases_series", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ region, disease, start_year: startYear, end_year: endYear })
+    });
+    const payload = await res.json();
+    if(payload.error){
+        console.error("Chart series error:", payload.error);
+        return;
+    }
+
+    const labels = payload.series.map(p => String(p.year));
+    const data = payload.series.map(p => p.cases);
 
     if(chart) chart.destroy(); 
 
     chart = new Chart(ctx, { 
         type: 'line', 
         data: { 
-            labels: ["2023", "2024", "2025"], 
+            labels, 
             datasets: [{ 
-                label: "Cases Trend", 
+                label: "Cases", 
                 data: data, 
                 borderWidth: 3,
                 borderColor: "#3b82f6",
-                tension: 0.4
+                tension: 0.35,
+                fill: false,
+                pointRadius: 3,
+                pointHoverRadius: 5
             }] 
         },
         options: {
@@ -265,7 +266,8 @@ function downloadPDF(){
 } 
 
 // Add listeners
-document.getElementById("disease").addEventListener("change", refreshHeatmap);
+document.getElementById("disease").addEventListener("change", loadHeatmap);
 
 // Initial Load
-initMap();
+loadHeatmap();
+predict();
